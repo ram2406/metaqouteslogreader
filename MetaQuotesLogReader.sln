@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.21005.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MetaQuotesLogReader", "MetaQuotesLogReader\MetaQuotesLogReader.vcxproj", "{D8DCA4E8-E0B6-42D1-A3EB-34B86203B4AD}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MetaQuotesLogReaderTest", "MetaQuotesLogReaderTest\MetaQuotesLogReaderTest.vcxproj", "{01AC59BD-B255-447F-9410-30F1464F7501}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MetaQoutesLogReaderLib", "MetaQoutesLogReaderLib\MetaQoutesLogReaderLib.vcxproj", "{1B24CADC-9264-4159-8C26-D60960DE2E8C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D8DCA4E8-E0B6-42D1-A3EB-34B86203B4AD}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D8DCA4E8-E0B6-42D1-A3EB-34B86203B4AD}.Debug|Win32.Build.0 = Debug|Win32
+		{D8DCA4E8-E0B6-42D1-A3EB-34B86203B4AD}.Release|Win32.ActiveCfg = Release|Win32
+		{D8DCA4E8-E0B6-42D1-A3EB-34B86203B4AD}.Release|Win32.Build.0 = Release|Win32
+		{01AC59BD-B255-447F-9410-30F1464F7501}.Debug|Win32.ActiveCfg = Debug|Win32
+		{01AC59BD-B255-447F-9410-30F1464F7501}.Debug|Win32.Build.0 = Debug|Win32
+		{01AC59BD-B255-447F-9410-30F1464F7501}.Release|Win32.ActiveCfg = Release|Win32
+		{01AC59BD-B255-447F-9410-30F1464F7501}.Release|Win32.Build.0 = Release|Win32
+		{1B24CADC-9264-4159-8C26-D60960DE2E8C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{1B24CADC-9264-4159-8C26-D60960DE2E8C}.Debug|Win32.Build.0 = Debug|Win32
+		{1B24CADC-9264-4159-8C26-D60960DE2E8C}.Release|Win32.ActiveCfg = Release|Win32
+		{1B24CADC-9264-4159-8C26-D60960DE2E8C}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
