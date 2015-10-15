@@ -67,12 +67,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="log_reader.h" />
+    <ClInclude Include="regex.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="log_reader.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="log_reader.props" />
+    <None Include="log_reader.props">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

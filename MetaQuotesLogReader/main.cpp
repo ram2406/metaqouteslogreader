@@ -24,5 +24,8 @@ int main(int argc, char** argv) {
 	if ( !regex || !regex[0])		{ return ArgumentRegexEmptyError; }
 	if ( !filename || !filename[0])	{ return ArgumentFileNameEmptyError; }
 
-	return lr::test(filename, regex);
+	const auto& err_code = lr::test(filename, regex);
+	return  err_code 
+			? err_code + UnknownError +1 
+			: 0;
 }
