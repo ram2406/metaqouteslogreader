@@ -68,6 +68,7 @@
   <ItemGroup>
     <ClInclude Include="log_reader.h" />
     <ClInclude Include="regex.h" />
+    <ClInclude Include="thread_safe_queue.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="log_reader.cpp" />

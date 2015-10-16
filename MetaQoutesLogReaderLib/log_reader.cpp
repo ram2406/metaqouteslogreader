@@ -92,7 +92,7 @@ bool clr::SetFilter(const char* filter) {
 		this->lastError = lr::ArgumentError;
 		return false;
 	}
-	const auto& filter_len = ::strlen(filter) + 1;
+	const auto& filter_len = ::strlen(filter) +1;
 	if (filter_len > sizeof(this->filter)) {
 		this->lastError = lr::ArgumentError;
 		return false;
