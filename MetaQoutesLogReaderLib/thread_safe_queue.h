@@ -129,6 +129,7 @@ namespace containers {
 		CVector(unsigned size)
 			: sz(size) {
 			this->first = new (std::nothrow) Element[sz];
+			if (!this->first) { sz = 0; }
 		}
 		CVector() : first(nullptr), sz(0U) {
 		}

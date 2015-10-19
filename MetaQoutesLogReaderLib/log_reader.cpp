@@ -9,6 +9,72 @@
 
 typedef lr::CLogReader clr;
 
+namespace log_reader {
+
+	inline
+	void read_string(char *buf, unsigned bufsize, FILE* f) {
+		for (unsigned bi = 0; bi < bufsize; ++bi) {
+			const auto& c = fgetc(f);
+			if (c == '\n' || c == EOF) {
+				buf[bi] = '\0';
+				break;
+			}
+			buf[bi] = c;
+		}
+	}
+
+
+	inline 
+	void log(int i) {
+	#ifdef _DEBUG
+		FILE* f;
+		fopen_s(&f, "log.txt", "a");
+		char s[128];
+		_itoa_s(i, s, 10);
+		fputs(s, f);
+		fputc('\n', f);
+		fclose(f);
+	#endif
+	}
+
+	DWORD WINAPI RegexThreadProc(LPVOID lpParam) {
+		clr::ThreadParam* param = (clr::ThreadParam*) lpParam;
+		struct FileGuard {
+			FILE* file;
+			FileGuard(const char* filename) {
+				::fopen_s(&file, filename, lr::FileOpenMode);
+			}
+			~FileGuard() {
+				::fclose(file);
+			}
+		} fg(param->data.fileName);
+
+		char string_buf[1024];
+
+		while (true) {
+			fpos_t offset = param->shared_data.Shift();
+			if (offset < 0) {
+				return 0;
+			}
+			if (::fsetpos(fg.file, &offset)) {
+				return 0;
+			}
+			for (unsigned si = 0; si < clr::SharedData::OffsetOfShift; ++si) {
+				fpos_t pos;
+				::fgetpos(fg.file, &pos);
+				lr::read_string(string_buf, sizeof(string_buf), fg.file);
+				if (rx::match(param->data.filter, string_buf)) {
+					clr::Result res = { pos };
+					param->results.Push(res);
+				}
+			}
+		}
+
+		//fake
+		return 0;
+	}
+}
+
 int log_reader::test(const char* filename, const char* regex) {
 	char matching_text[10000] = {0};
 	clr reader(filename);
@@ -22,7 +88,6 @@ int log_reader::test(const char* filename, const char* regex) {
 	while (reader.GetNextLine(matching_text, sizeof(matching_text))) {
 		++sz;
 	}
-	
 	return	sz ? 0 : lr::NotMatching;
 }
 
@@ -67,14 +132,12 @@ bool clr::GetNextLine(char *buf, const int bufsize) {
 			//not have new results
 			return false;
 		}
-		if (::fseek(data.file, res.position_in_file, SEEK_SET)) {
+		if (::fsetpos(data.file, &res.position_in_file)) {
 			this->data.lastError = lr::InnerError;
 			return false;
 		}
 
-		if (::fgets(buf, sizeof(bufsize), data.file) == 0) {
-			return false;
-		}
+		lr::read_string(buf, bufsize, data.file);
 		return true;
 	}
 
@@ -99,16 +162,14 @@ bool clr::GetNextLine(char *buf, const int bufsize) {
 		spec::Sleep(10);	//wait of threads
 	}
 	
-
+	//lr::log(res.position_in_file);
 	//move result into user
-	if (::fseek(data.file, res.position_in_file, SEEK_SET)) {
+	if (::fsetpos(data.file, &res.position_in_file)) {
 		this->data.lastError = lr::InnerError;
 		return false;
 	}
-
-	if (::fgets(buf, sizeof(bufsize), data.file) == 0) {
-		return false;
-	}
+	
+	lr::read_string(buf, bufsize, data.file);
 
 	return true;
 }
@@ -178,42 +239,6 @@ void clr::lastErrorAssert() {
 	assert(!data.lastError && "ClogReader: has error");
 }
 
-namespace log_reader {
-	DWORD WINAPI RegexThreadProc(LPVOID lpParam) {
-		clr::ThreadParam* param = (clr::ThreadParam*) lpParam;
-		struct FileGuard {
-			FILE* file;
-			FileGuard(const char* filename) {
-				::fopen_s(&file, filename, lr::FileOpenMode);
-			}
-			~FileGuard() {
-				::fclose(file);
-			}
-		} fg(param->data.fileName);
-
-		char string_buf[1024];
-		
-		while (true) {
-			int offset = param->shared_data.Shift();
-			if (offset < 0) {
-				return 0;
-			}
-			::fseek(fg.file, offset, SEEK_SET);
-			for (unsigned si = 0; si < clr::SharedData::OffsetOfShift; ++si) {
-				int pos = ::ftell(fg.file);
-				if (::fgets(string_buf, sizeof(string_buf), fg.file) != 0) {
-					if (rx::match(param->data.filter, string_buf)) {
-						clr::Result res = { pos };
-						param->results.Push(res);
-					}
-				}
-			}
-		}
-		
-		//fake
-		return 0;
-	}
-}
 
 void clr::init_threads() {
 	const auto& thread_limit = spec::Hardware_concurrency();

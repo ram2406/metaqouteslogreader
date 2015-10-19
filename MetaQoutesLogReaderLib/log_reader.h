@@ -6,7 +6,7 @@
 namespace log_reader {
 
 	int test(const char* filename, const char* regex);
-	const char FileOpenMode[] = "r";
+	const char FileOpenMode[] = "rb";
 	enum ErrorCode : unsigned char {
 		NoneError = 0,
 
@@ -30,43 +30,43 @@ namespace log_reader {
 		
 		struct SharedData {
 			friend class CLogReader;
-			static const unsigned OffsetOfShift = 10;
+			static const unsigned OffsetOfShift = 1000U;
 		private:
 			
-			int last_pos_in_file;
+			fpos_t last_pos_in_file;
 			spec::CMutex mutex;
 			FILE *file;
 		public:
-			int GetLastPos() {
+			fpos_t GetLastPos() {
 				cs::CLockGuard<spec::CMutex> lk(mutex);
 				return last_pos_in_file;
 			}
-			int Shift() {
+			fpos_t Shift() {
 				cs::CLockGuard<spec::CMutex> lk(mutex);
 				if (last_pos_in_file == EOF) {
 					return last_pos_in_file;
 				}
 				for (unsigned i = 0; i < OffsetOfShift; ++i) {
 					while (true) {
-						int c = ::fgetc(file);
+						char c = ::fgetc(file);
 						if (c == '\n') {
 							break;
 						}
 						if (c == EOF) {
-							int old_pos = last_pos_in_file;
+							fpos_t old_pos = last_pos_in_file;
 							last_pos_in_file = EOF;
 							return old_pos;
 						}
 					}
 				}
-				int old_pos = last_pos_in_file;
-				last_pos_in_file = ::ftell(file);
+				fpos_t old_pos = last_pos_in_file;
+				::fgetpos(file, &last_pos_in_file);
 				return old_pos;
 			}
 		};
 
 		struct Result {
-			int position_in_file;
+			fpos_t position_in_file;
 		};
 
 		struct ThreadParam {
