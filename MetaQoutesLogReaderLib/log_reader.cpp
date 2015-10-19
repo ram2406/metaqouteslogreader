@@ -10,7 +10,7 @@
 typedef lr::CLogReader clr;
 
 int log_reader::test(const char* filename, const char* regex) {
-	char matching_text[255] = {0};
+	char matching_text[10000] = {0};
 	clr reader(filename);
 	if (!reader.SetFilter(regex)) {
 		return reader.GetLastError();
@@ -18,97 +18,207 @@ int log_reader::test(const char* filename, const char* regex) {
 	if (!reader.Open()) {
 		return reader.GetLastError();
 	}
-	const auto& hasMatching = reader.GetNextLine(matching_text, sizeof(matching_text));
-	//if (hasMatching) {
-	//	printf_s("match: %s", matching_text);
-	//}
-	return	hasMatching 
-			? 0 
-			: lr::NotMatching;
+	unsigned sz = 0;
+	while (reader.GetNextLine(matching_text, sizeof(matching_text))) {
+		++sz;
+	}
+	
+	return	sz ? 0 : lr::NotMatching;
 }
 
 clr::CLogReader(const char* filename)
-	: file(nullptr)
-	, lastError(NoneError) {
+	: thread_param(data, shared_data, results) {
+	data.lastError = NoneError;
+	data.file = nullptr;
+	shared_data.file = nullptr;
+	shared_data.last_pos_in_file = 0;
+
 	lastErrorAssert();
-	::memset(this->filter, 0, sizeof(this->filter));
-	::memset(this->fileName, 0, sizeof(this->fileName));
+	::memset(this->data.filter, 0, sizeof(this->data.filter));
+	::memset(this->data.fileName, 0, sizeof(this->data.fileName));
 	if (!filename || !filename[0]) {
-		this->lastError = ArgumentError;
+		this->data.lastError = ArgumentError;
 		return;
 	}
 	const auto& filename_len = ::strlen(filename) +1;
-	if (filename_len > sizeof(this->fileName)) {
-		this->lastError = ArgumentError;
+	if (filename_len > sizeof(this->data.fileName)) {
+		this->data.lastError = ArgumentError;
 		return;
 	}
-	::memcpy_s(this->fileName, sizeof(fileName), filename, filename_len);
+	::memcpy_s(this->data.fileName, sizeof(data.fileName), filename, filename_len);
 }
 clr::~CLogReader() {
-	lastError = lr::NoneError;
+	data.lastError = lr::NoneError;
+	threads.clear();
 	this->Close();
 }
 
 bool clr::GetNextLine(char *buf, const int bufsize) {
 	lastErrorAssert();
 	if (!buf || !bufsize) {
-		this->lastError = lr::ArgumentError;
+		this->data.lastError = lr::ArgumentError;
 		return false;
 	}
-	while (::fgets(buf, bufsize, this->file) != NULL) {
-		if (this->match(buf)) {
-			return true;
+
+	//if threads already finished, but has results
+	if (shared_data.GetLastPos() == EOF && !threads.size()) {
+		Result res;
+		if (!results.Pop(res)) {
+			//not have new results
+			return false;
+		}
+		if (::fseek(data.file, res.position_in_file, SEEK_SET)) {
+			this->data.lastError = lr::InnerError;
+			return false;
+		}
+
+		if (::fgets(buf, sizeof(bufsize), data.file) == 0) {
+			return false;
+		}
+		return true;
+	}
+
+	if (!threads.size()) {
+		init_threads();
+		if (!threads.size()) {
+			this->data.lastError = lr::InnerError;
+			return false;
 		}
 	}
-	return false;
+
+	Result res;
+	while (!results.Pop(res)) {
+		if (shared_data.GetLastPos() == EOF && threads.size()) {
+			threads.clear();	//threads finished
+			if (!results.Pop(res)) {
+				//not have new results
+				return false;
+			}
+			break;
+		}
+		spec::Sleep(10);	//wait of threads
+	}
+	
+
+	//move result into user
+	if (::fseek(data.file, res.position_in_file, SEEK_SET)) {
+		this->data.lastError = lr::InnerError;
+		return false;
+	}
+
+	if (::fgets(buf, sizeof(bufsize), data.file) == 0) {
+		return false;
+	}
+
+	return true;
 }
 
 bool clr::Open() {
 	lastErrorAssert();
 	this->Close();
 	
-	if (fopen_s(&this->file, this->fileName, lr::FileOpenMode)) {
-		this->lastError = lr::FileOpenError;
+	if (fopen_s(&this->shared_data.file, this->data.fileName, lr::FileOpenMode)) {
+		this->data.lastError = lr::FileOpenError;
 		return false;
 	}
-	assert(file && "ClogReader: logic uncorrect");
+
+	if (fopen_s(&this->data.file, this->data.fileName, lr::FileOpenMode)) {
+		this->data.lastError = lr::FileOpenError;
+		return false;
+	}
+
+	assert(this->shared_data.file && "ClogReader: logic uncorrect");
 	return true;
 }
 void clr::Close() {
 	lastErrorAssert();
-	if (!this->file) {
+	if (!this->shared_data.file) {
 		return;
 	}
-	if (fclose(this->file)) {
-		this->lastError = lr::FileCloseError;
+	if (fclose(this->shared_data.file)) {
+		this->data.lastError = lr::FileCloseError;
 	}
-	this->file = nullptr;
-	assert(!file && "ClogReader: logic uncorrect");
+	this->shared_data.file = nullptr;
+
+	if (!this->data.file) {
+		return;
+	}
+	if (fclose(this->data.file)) {
+		this->data.lastError = lr::FileCloseError;
+	}
+	this->data.file = nullptr;
+
+	assert(!this->shared_data.file && "ClogReader: logic uncorrect");
 }
 
 bool clr::SetFilter(const char* filter) {
 	this->lastErrorAssert();
 	if (!filter || !filter[0]) {
-		this->lastError = lr::ArgumentError;
+		this->data.lastError = lr::ArgumentError;
 		return false;
 	}
 	const auto& filter_len = ::strlen(filter) +1;
-	if (filter_len > sizeof(this->filter)) {
-		this->lastError = lr::ArgumentError;
+	if (filter_len > sizeof(this->data.filter)) {
+		this->data.lastError = lr::ArgumentError;
 		return false;
 	}
-	::memcpy_s(this->filter, sizeof(this->filter), filter, filter_len);
-	assert((filter_len == strlen(this->filter) +1) && "ClogReader: logic uncorrect");
+	::memcpy_s(this->data.filter, sizeof(this->data.filter), filter, filter_len);
+	assert((filter_len == strlen(this->data.filter) +1) && "ClogReader: logic uncorrect");
 	return true;
 }
 
 bool clr::match(const char* string) {
-	return rx::match(this->filter, string) != 0;
+	return rx::match(this->data.filter, string) != 0;
 }
 
 void clr::lastErrorAssert() {
-	if (lastError) {
-		printf_s("last error: %d \n", lastError);
+	if (data.lastError) {
+		printf_s("last error: %d \n", data.lastError);
 	}
-	assert(!lastError && "ClogReader: has error");
+	assert(!data.lastError && "ClogReader: has error");
+}
+
+namespace log_reader {
+	DWORD WINAPI RegexThreadProc(LPVOID lpParam) {
+		clr::ThreadParam* param = (clr::ThreadParam*) lpParam;
+		struct FileGuard {
+			FILE* file;
+			FileGuard(const char* filename) {
+				::fopen_s(&file, filename, lr::FileOpenMode);
+			}
+			~FileGuard() {
+				::fclose(file);
+			}
+		} fg(param->data.fileName);
+
+		char string_buf[1024];
+		
+		while (true) {
+			int offset = param->shared_data.Shift();
+			if (offset < 0) {
+				return 0;
+			}
+			::fseek(fg.file, offset, SEEK_SET);
+			for (unsigned si = 0; si < clr::SharedData::OffsetOfShift; ++si) {
+				int pos = ::ftell(fg.file);
+				if (::fgets(string_buf, sizeof(string_buf), fg.file) != 0) {
+					if (rx::match(param->data.filter, string_buf)) {
+						clr::Result res = { pos };
+						param->results.Push(res);
+					}
+				}
+			}
+		}
+		
+		//fake
+		return 0;
+	}
+}
+
+void clr::init_threads() {
+	const auto& thread_limit = spec::Hardware_concurrency();
+	threads.resize(thread_limit);
+	for (unsigned ti = 0; ti < thread_limit; ++ti) {
+		threads[ti].Set(&lr::RegexThreadProc, &this->thread_param);
+	}
 }

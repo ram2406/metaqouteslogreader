@@ -1,5 +1,6 @@
+#pragma once
 #include <new>
-#include <Windows.h>
+#include "platform_spec.h"
 
 namespace containers {
 
@@ -28,7 +29,7 @@ namespace containers {
 			return *ptr;
 		}
 		operator bool() {
-			return ptr;
+			return ptr != nullptr;
 		}
 		T* release() {
 			auto p = ptr;
@@ -43,6 +44,7 @@ namespace containers {
 
 	template <class Element>
 	class CQueue {
+	protected:
 		struct CNode {
 			Element data;
 			CAutoPtr<CNode> next;
@@ -63,9 +65,14 @@ namespace containers {
 			: head(new (std::nothrow) CNode)
 			, tail(head.get()) {
 		}
+		~CQueue() {
+			Element data;
+			while (this->Pop(data));
+		}
 		void Push(const Element& data) {
 			if (!head) { return; }
 			CNode* new_tail = new (std::nothrow) CNode;
+			if (!new_tail) { return; }
 			tail->data = data;
 			tail->next.reset(new_tail);
 			tail = new_tail;
@@ -81,27 +88,7 @@ namespace containers {
 		}
 	};
 
-	class CMutex {
-		HANDLE h;
-	public:
-		CMutex() {
-			h = ::CreateMutex(0, FALSE, 0);
-		}
-		~CMutex() {
-			::CloseHandle(h);
-		}
-		void lock() {
-			const auto &res = ::WaitForSingleObject(h, 0);
-			assert(res == WAIT_OBJECT_0 && "Mutex: lock failed");
-		}
-		bool try_lock() {
-			return ::WaitForSingleObject(h, 1) == WAIT_OBJECT_0;
-		}
-		void unlock() {
-			const auto &res = ::ReleaseMutex(h);
-			assert(res == TRUE && "Mutex: unlock failed");
-		}
-	};
+	
 
 	template < class Mx >
 	class CLockGuard {
@@ -111,7 +98,7 @@ namespace containers {
 		~CLockGuard() { mutex.unlock(); }
 	};
 
-	template<class Element, class Mx = CMutex>
+	template<class Element, class Mx = spec::CMutex>
 	class CThreadSafeQueue
 		: private CQueue<Element>
 	{
@@ -133,4 +120,37 @@ namespace containers {
 			base::Push(data);
 		}
 	};
+
+	template<class Element>
+	class CVector {
+		Element* first;
+		unsigned sz;
+	public:
+		CVector(unsigned size)
+			: sz(size) {
+			this->first = new (std::nothrow) Element[sz];
+		}
+		CVector() : first(nullptr), sz(0U) {
+		}
+		~CVector() {
+			delete [] first;
+		}
+
+		Element& operator[] (unsigned index) {
+			return first[index];
+		}
+		unsigned size() { return sz; }
+		bool resize(unsigned new_size) {
+			delete[] first;
+			this->first = new (std::nothrow) Element[new_size];
+			if (!this->first) { this->sz = 0;  return false; }
+			this->sz = new_size;
+			return true;
+		}
+
+		void clear() {
+			resize(0);
+		}
+	};
 }
+namespace cs = containers;

@@ -11,7 +11,7 @@ namespace /* simple exec test */{
 		CHECK(system(R"(del logfilename.txt && del logfilename1.txt)") == 0);
 
 		CHECK(system(R"(echo.  2> logfilename.txt)") == 0);
-		CHECK(system(R"(logreader "regex" "logfilename.txt" )") == 104);
+		CHECK(system(R"(logreader "regex" "logfilename.txt" )") == 105);
 		
 		CHECK(system(R"(logreader "regex" "logfilename.txt1" )") == 102);
 		CHECK(system(R"(echo regex text > logfilename1.txt)") == 0);

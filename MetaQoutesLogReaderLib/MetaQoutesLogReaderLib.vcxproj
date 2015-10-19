@@ -67,6 +67,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="log_reader.h" />
+    <ClInclude Include="platform_spec.h" />
     <ClInclude Include="regex.h" />
     <ClInclude Include="thread_safe_queue.h" />
   </ItemGroup>
