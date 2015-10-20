@@ -11,6 +11,7 @@ typedef lr::CLogReader clr;
 
 namespace log_reader {
 
+	//reading string from file
 	inline
 	void read_string(char *buf, unsigned bufsize, FILE* f) {
 		for (unsigned bi = 0; bi < bufsize; ++bi) {
@@ -37,6 +38,8 @@ namespace log_reader {
 	#endif
 	}
 
+	//async function
+	//open file, reading while not EOF
 	DWORD WINAPI RegexThreadProc(LPVOID lpParam) {
 		clr::ThreadParam* param = (clr::ThreadParam*) lpParam;
 		struct FileGuard {
@@ -47,25 +50,29 @@ namespace log_reader {
 			~FileGuard() {
 				::fclose(file);
 			}
-		} fg(param->data.fileName);
+		} fg(param->data.fileName);		//one FILE* per thread
 
+		//for next string
 		char string_buf[1024];
 
 		while (true) {
+			//get current offset and shift on fixed constant value (portion for a one thread)
 			fpos_t offset = param->shared_data.Shift();
 			if (offset < 0) {
 				return 0;
 			}
+			//shifting in file
 			if (::fsetpos(fg.file, &offset)) {
 				return 0;
 			}
+			//for each iteration in portion
 			for (unsigned si = 0; si < clr::SharedData::OffsetOfShift; ++si) {
 				fpos_t pos;
-				::fgetpos(fg.file, &pos);
+				::fgetpos(fg.file, &pos);	//save current position
 				lr::read_string(string_buf, sizeof(string_buf), fg.file);
 				if (rx::match(param->data.filter, string_buf)) {
 					clr::Result res = { pos };
-					param->results.Push(res);
+					param->results.Push(res);	//insert saving position
 				}
 			}
 		}
@@ -75,7 +82,8 @@ namespace log_reader {
 	}
 }
 
-int log_reader::test(const char* filename, const char* regex) {
+int log_reader::test(const char* filename, const char* regex, bool withPrintResult) {
+	printf("\nCLogReader started\n regex = \"%s\"\n filename = \"%s\"\n\n", regex, filename);
 	char matching_text[10000] = {0};
 	clr reader(filename);
 	if (!reader.SetFilter(regex)) {
@@ -85,12 +93,19 @@ int log_reader::test(const char* filename, const char* regex) {
 		return reader.GetLastError();
 	}
 	unsigned sz = 0;
+	
+	
 	while (reader.GetNextLine(matching_text, sizeof(matching_text))) {
 		++sz;
+		if (withPrintResult) {
+			printf("%d: %s\n", sz, matching_text);
+		}
 	}
+	printf("CLogReader finished, matched %d\n", sz);
 	return	sz ? 0 : lr::NotMatching;
 }
 
+///////////// Public ///////////////
 clr::CLogReader(const char* filename)
 	: thread_param(data, shared_data, results) {
 	data.lastError = NoneError;
@@ -112,6 +127,7 @@ clr::CLogReader(const char* filename)
 	}
 	::memcpy_s(this->data.fileName, sizeof(data.fileName), filename, filename_len);
 }
+
 clr::~CLogReader() {
 	data.lastError = lr::NoneError;
 	threads.clear();
@@ -141,6 +157,7 @@ bool clr::GetNextLine(char *buf, const int bufsize) {
 		return true;
 	}
 
+	//init threads once
 	if (!threads.size()) {
 		init_threads();
 		if (!threads.size()) {
@@ -149,20 +166,24 @@ bool clr::GetNextLine(char *buf, const int bufsize) {
 		}
 	}
 
+	//try pop result from queue, while file reading was finished
 	Result res;
 	while (!results.Pop(res)) {
 		if (shared_data.GetLastPos() == EOF && threads.size()) {
+			//means file finished
 			threads.clear();	//threads finished
 			if (!results.Pop(res)) {
 				//not have new results
 				return false;
 			}
-			break;
+			break;	//has result(s)
 		}
 		spec::Sleep(10);	//wait of threads
 	}
 	
+	//for debug
 	//lr::log(res.position_in_file);
+
 	//move result into user
 	if (::fsetpos(data.file, &res.position_in_file)) {
 		this->data.lastError = lr::InnerError;
@@ -191,6 +212,7 @@ bool clr::Open() {
 	assert(this->shared_data.file && "ClogReader: logic uncorrect");
 	return true;
 }
+
 void clr::Close() {
 	lastErrorAssert();
 	if (!this->shared_data.file) {
@@ -228,6 +250,7 @@ bool clr::SetFilter(const char* filter) {
 	return true;
 }
 
+/////////// Private ////////////////
 bool clr::match(const char* string) {
 	return rx::match(this->data.filter, string) != 0;
 }
@@ -239,11 +262,41 @@ void clr::lastErrorAssert() {
 	assert(!data.lastError && "ClogReader: has error");
 }
 
-
 void clr::init_threads() {
 	const auto& thread_limit = spec::Hardware_concurrency();
 	threads.resize(thread_limit);
 	for (unsigned ti = 0; ti < thread_limit; ++ti) {
 		threads[ti].Set(&lr::RegexThreadProc, &this->thread_param);
 	}
+}
+
+//////////// SharedData ///////////
+fpos_t clr::SharedData::GetLastPos() {
+	cs::CLockGuard<spec::CMutex> lk(mutex);
+	return last_pos_in_file;
+}
+
+fpos_t clr::SharedData::Shift() {
+	cs::CLockGuard<spec::CMutex> lk(mutex);
+	if (last_pos_in_file == EOF) {
+		return last_pos_in_file;
+	}
+	for (unsigned i = 0; i < OffsetOfShift; ++i) {
+		while (true) {
+			char c = ::fgetc(file);
+			if (c == '\n') {
+				//move to next line
+				break;
+			}
+			if (c == EOF) {
+				//file is finished
+				fpos_t old_pos = last_pos_in_file;
+				last_pos_in_file = EOF;
+				return old_pos;
+			}
+		}
+	}
+	fpos_t old_pos = last_pos_in_file;
+	::fgetpos(file, &last_pos_in_file);	//set next position after OffsetOfShift lines
+	return old_pos;	//return current position
 }

@@ -27,6 +27,10 @@ namespace rx {
 		if (regexp[1] == '*') {
 			return matchstar(regexp[0], regexp + 2, text);
 		}
+		if (regexp[1] == '?') {
+			int offset = (regexp[0] == text[0] ? +1 : +0);
+			return matchhere(regexp + 2, text +offset);
+		}
 		if (regexp[0] == '$' && regexp[1] == '\0') {
 			return *text == '\0';
 		}

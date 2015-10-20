@@ -1,7 +1,8 @@
 #define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
 #include "catch.hpp"
+#include <chrono>
 #include <thread_safe_queue.h>
-#include <log_reader.h>
+
 
 static struct hack {
 	~hack() { system("pause"); }	//wait user to press any key
@@ -14,9 +15,9 @@ namespace /* simple exec test */{
 		CHECK(system(R"(logreader "regex" "logfilename.txt" )") == 105);
 		
 		CHECK(system(R"(logreader "regex" "logfilename.txt1" )") == 102);
-		CHECK(system(R"(echo regex text > logfilename1.txt)") == 0);
+		CHECK(system(R"(echo regex text \n rege text > logfilename1.txt)") == 0);
 		
-		CHECK(system(R"(logreader "^regex*" "logfilename1.txt" )") == 0);
+		CHECK(system(R"(logreader "^regex" "logfilename1.txt" )") == 0);
 		
 	}
 
@@ -64,5 +65,18 @@ namespace /* conainers test */ {
 		while (queue.Pop(data2));
 		CHECK(data1 == 5);
 		CHECK(data2 == 100);
+	}
+}
+
+namespace /* main tests */ {
+	TEST_CASE("main-test") {
+		
+		auto t1 = std::chrono::high_resolution_clock::now();
+		CHECK(system(R"(logreader "^[2015-10-11 16:.*WARN.*Not Found?$" "../MetaQuotesLogReaderTest/teamcity-vcs.log.2" --print)") == 0);
+		auto t2 = std::chrono::high_resolution_clock::now();
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+		std::cout << "\n Time: " << duration.count() * 0.001 << "s" << std::endl;
+		
+		
 	}
 }

@@ -5,8 +5,15 @@
 
 namespace log_reader {
 
-	int test(const char* filename, const char* regex);
+	//for behavior testing of class
+	int test(const char* filename, const char* regex, bool withPrintResult);
+
+	//mode for each FILE*:
+	//CLogReader::data.file
+	//SharedData::file
+	//local in RegexThreadProc (for each threads)
 	const char FileOpenMode[] = "rb";
+
 	enum ErrorCode : unsigned char {
 		NoneError = 0,
 
@@ -21,13 +28,15 @@ namespace log_reader {
 	class CLogReader
 	{
 	public:
+		///////////// Data /////////////////
 		struct Data {
 			char filter[255];
 			char fileName[255];
-			FILE *file;
+			
 			ErrorCode lastError;			
+			FILE *file;
 		};
-		
+		//////////// SharedData ////////////
 		struct SharedData {
 			friend class CLogReader;
 			static const unsigned OffsetOfShift = 1000U;
@@ -35,40 +44,16 @@ namespace log_reader {
 			
 			fpos_t last_pos_in_file;
 			spec::CMutex mutex;
-			FILE *file;
+			FILE *file;		//for shifting
 		public:
-			fpos_t GetLastPos() {
-				cs::CLockGuard<spec::CMutex> lk(mutex);
-				return last_pos_in_file;
-			}
-			fpos_t Shift() {
-				cs::CLockGuard<spec::CMutex> lk(mutex);
-				if (last_pos_in_file == EOF) {
-					return last_pos_in_file;
-				}
-				for (unsigned i = 0; i < OffsetOfShift; ++i) {
-					while (true) {
-						char c = ::fgetc(file);
-						if (c == '\n') {
-							break;
-						}
-						if (c == EOF) {
-							fpos_t old_pos = last_pos_in_file;
-							last_pos_in_file = EOF;
-							return old_pos;
-						}
-					}
-				}
-				fpos_t old_pos = last_pos_in_file;
-				::fgetpos(file, &last_pos_in_file);
-				return old_pos;
-			}
+			inline	fpos_t GetLastPos();
+			inline	fpos_t Shift();
 		};
-
+		///////////// Result ///////////////
 		struct Result {
 			fpos_t position_in_file;
 		};
-
+		//////////// ThreadParam ////////////
 		struct ThreadParam {
 
 			const Data& data;
@@ -84,22 +69,22 @@ namespace log_reader {
 			}
 			
 		};
-
+		////////////////////////////////////
 	private:
-		Data data;
-		SharedData shared_data;
-		
 
+		////////////// Members /////////////
+		Data data;		//read async, write only in class
+		SharedData shared_data;		// r/w in different threads
+		cs::CVector<spec::CThread> threads;		//count == logic_core_count
+		cs::CThreadSafeQueue<Result> results;	//thread-safe linked list
+
+		ThreadParam thread_param;	//one for all threads
+
+		////////////////////////////////////
+		void init_threads();		//once
 		inline void lastErrorAssert();
-
 		bool match(const char* string);
 
-		cs::CVector<spec::CThread> threads;
-		cs::CThreadSafeQueue<Result> results;
-
-		ThreadParam thread_param;
-
-		void init_threads();
 	public:
 		CLogReader(const char* filename);
 		~CLogReader();

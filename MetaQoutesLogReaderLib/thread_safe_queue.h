@@ -4,34 +4,26 @@
 
 namespace containers {
 
-	template<class T>
-	class CAutoPtr {
-		T* ptr;
-
-		CAutoPtr(const CAutoPtr&) {}
-		CAutoPtr& operator= (const CAutoPtr&) { return *this; }
+	class NotCopy {
 	public:
-		CAutoPtr(T* ptr)
-			: ptr(ptr) {
-		}
-		~CAutoPtr() {
-			delete ptr;
-		}
+		NotCopy() {}
+	private:
+		NotCopy(const NotCopy&) {}
+		NotCopy& operator= (const NotCopy&) { return *this; }
+	};
 
-		T* get() {
-			return ptr;
-		}
+	template<class T>
+	class CAutoPtr : NotCopy {
+		T* ptr;
+	public:
+		CAutoPtr(T* ptr) : ptr(ptr) { }
+		~CAutoPtr() {	delete ptr;	}
+		T* get()	{	return ptr;	}
+		T* operator-> ()	{	return ptr;	}
+		T& operator* ()		{	return *ptr;}
+		operator bool()		{	return ptr != nullptr;	}
 
-		T* operator-> () {
-			return ptr;
-		}
-		T& operator* () {
-			return *ptr;
-		}
-		operator bool() {
-			return ptr != nullptr;
-		}
-		T* release() {
+		T* release() {	
 			auto p = ptr;
 			ptr = nullptr;
 			return p;
@@ -43,7 +35,7 @@ namespace containers {
 	};
 
 	template <class Element>
-	class CQueue {
+	class CQueue : NotCopy {
 	protected:
 		struct CNode {
 			Element data;
@@ -57,17 +49,14 @@ namespace containers {
 		};
 		CAutoPtr<CNode> head;
 		CNode* tail;
-
-		CQueue(const CQueue&) {}
-		CQueue& operator= (const CQueue&) { return *this; }
 	public:
 		CQueue()
 			: head(new (std::nothrow) CNode)
 			, tail(head.get()) {
 		}
 		~CQueue() {
-			Element data;
-			while (this->Pop(data));
+			Element fake;
+			while (this->Pop(fake));	//else stackoverflow
 		}
 		void Push(const Element& data) {
 			if (!head) { return; }
@@ -91,7 +80,7 @@ namespace containers {
 	
 
 	template < class Mx >
-	class CLockGuard {
+	class CLockGuard : NotCopy {
 		Mx& mutex;
 	public:
 		CLockGuard(Mx& mx) : mutex(mx) { mutex.lock(); }
@@ -122,7 +111,7 @@ namespace containers {
 	};
 
 	template<class Element>
-	class CVector {
+	class CVector : NotCopy {
 		Element* first;
 		unsigned sz;
 	public:
