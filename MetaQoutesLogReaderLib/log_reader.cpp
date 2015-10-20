@@ -300,3 +300,30 @@ fpos_t clr::SharedData::Shift() {
 	::fgetpos(file, &last_pos_in_file);	//set next position after OffsetOfShift lines
 	return old_pos;	//return current position
 }
+
+/* unfortunate 
+void* operator new  (std::size_t count, const std::nothrow_t& tag) {
+	return ::GlobalAlloc(GMEM_FIXED, count);
+}
+
+void* operator new[](std::size_t count, const std::nothrow_t& tag) {
+	return ::GlobalAlloc(GMEM_FIXED, count);
+}
+
+void* operator new  (std::size_t count){
+	return ::GlobalAlloc(GMEM_FIXED, count);
+}
+
+void* operator new[](std::size_t count) {
+	return ::GlobalAlloc(GMEM_FIXED, count);
+}
+
+
+void operator delete(void* ptr) {
+	::GlobalFree(ptr);
+}
+
+void operator delete[](void* ptr) {
+	::GlobalFree(ptr);
+}
+//*/
