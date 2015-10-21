@@ -34,52 +34,75 @@ namespace log_reader {
 			char fileName[255];
 			
 			ErrorCode lastError;			
-			FILE *file;
+			spec::CFile file_for_read;
+			spec::CFile file_for_seach;
 		};
-		//////////// SharedData ////////////
-		struct SharedData {
-			friend class CLogReader;
-			static const unsigned OffsetOfShift = 10000U;
-		private:
-			
-			fpos_t last_pos_in_file;
-			spec::CMutex mutex;
-			FILE *file;		//for shifting
-		public:
-			inline	fpos_t GetLastPos();
-			inline	fpos_t Shift();
-		};
+
 		///////////// Result ///////////////
 		struct Result {
-			fpos_t position_in_file;
+			unsigned long position_in_file;
 		};
 		//////////// ThreadParam ////////////
+		enum ThreadState : unsigned char {
+			StartThread = 0,
+			FinishThread,
+			NeedProcess,
+			AlreadyProcessed,
+			
+		};
+		struct ThreadData {
+			static const unsigned StringsBufferLength = 4096U;
+			ThreadState state;
+			char stringBuffer[StringsBufferLength];
+			unsigned long pos_in_file;
+
+			ThreadData()
+				: state(StartThread)
+				, pos_in_file(0) {
+			}
+		};
+		
+		//////////// ThreadParam ////////////
 		struct ThreadParam {
-
-			const Data& data;
-			SharedData& shared_data;
+			ThreadData data;
 			cs::CThreadSafeQueue<Result>& results;
+			const char* const filter;
 
-			ThreadParam	( const Data& data
-						, SharedData& shared_data
-						, cs::CThreadSafeQueue<Result>& results)
-						: data(data)
-						, shared_data(shared_data)
-						, results(results) {
+			ThreadParam	( cs::CThreadSafeQueue<Result>& results
+						, const char* filter)
+						: results(results)
+						, filter(filter) {
 			}
 			
+		};
+		struct ThraedWithData {
+			spec::CThread thread;
+			cs::CAutoPtr<ThreadParam> param;
+			ThraedWithData() : param(nullptr) {
+			}
+		};
+		struct ReadFileThreadParam {
+			cs::CVector<ThraedWithData>& dataPerThread;
+			spec::CFile& file;
+			ThreadState state;
+			ReadFileThreadParam(cs::CVector<ThraedWithData>& dataPerThread,
+								spec::CFile& file)
+				: dataPerThread(dataPerThread)
+				, file(file)
+				, state(StartThread) {
+			}
 		};
 		////////////////////////////////////
 	private:
 
 		////////////// Members /////////////
 		Data data;		//read async, write only in class
-		SharedData shared_data;		// r/w in different threads
-		cs::CVector<spec::CThread> threads;		//count == logic_core_count
+		
+		cs::CVector<ThraedWithData> threads;		//count == logic_core_count
 		cs::CThreadSafeQueue<Result> results;	//thread-safe linked list
 
-		ThreadParam thread_param;	//one for all threads
-
+		ReadFileThreadParam read_thread_param;
+		spec::CThread read_thread;
 		////////////////////////////////////
 		void init_threads();		//once
 		inline void lastErrorAssert();

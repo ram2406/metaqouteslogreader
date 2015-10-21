@@ -33,53 +33,6 @@ namespace log_reader {
 		::fsetpos(f, &offset);
 	}
 
-
-	//inline
-	//void read_string(char *buf, unsigned bufsize, FILE* f) {
-	//	for (unsigned bi = 0; bi < bufsize; bi += 4) {
-	//		{
-	//			const auto& c = fgetc(f);
-	//			if (c == '\n' || c == EOF) {
-	//				buf[bi + 0] = '\0';
-	//				break;
-	//			}
-	//			buf[bi + 0] = c;
-	//		}
-	//		////////////////
-	//		{
-	//			const auto& c = fgetc(f);
-	//			if (bufsize == bi) { break; }
-	//			if (c == '\n' || c == EOF) {
-	//				buf[bi + 1] = '\0';
-	//				break;
-	//			}
-	//			buf[bi + 1] = c;
-	//		}
-	//		////////////////
-	//		{
-	//			const auto& c = fgetc(f);
-	//			if (bufsize == bi) { break; }
-	//			if (c == '\n' || c == EOF) {
-	//				buf[bi + 2] = '\0';
-	//				break;
-	//			}
-	//			buf[bi + 2] = c;
-	//		}
-	//		////////////////
-	//		{
-	//			const auto& c = fgetc(f);
-	//			if (bufsize == bi) { break; }
-	//			if (c == '\n' || c == EOF) {
-	//				buf[bi + 3] = '\0';
-	//				break;
-	//			}
-	//			buf[bi + 3] = c;
-	//			////////////////
-	//		}
-	//	}
-	//}
-
-
 	inline 
 	void log(int i) {
 	#ifdef _DEBUG
@@ -96,42 +49,65 @@ namespace log_reader {
 	//async function
 	//open file, reading while not EOF
 	DWORD WINAPI RegexThreadProc(LPVOID lpParam) {
-		clr::ThreadParam* param = (clr::ThreadParam*) lpParam;
-		struct FileGuard {
-			FILE* file;
-			FileGuard(const char* filename) {
-				::fopen_s(&file, filename, lr::FileOpenMode);
-			}
-			~FileGuard() {
-				::fclose(file);
-			}
-		} fg(param->data.fileName);		//one FILE* per thread
-
-		//for next string
-		char string_buf[1024];
-
-		while (true) {
-			//get current offset and shift on fixed constant value (portion for a one thread)
-			fpos_t offset = param->shared_data.Shift();
-			if (offset < 0) {
-				return 0;
-			}
-			//shifting in file
-			if (::fsetpos(fg.file, &offset)) {
-				return 0;
-			}
-			//for each iteration in portion
-			for (unsigned si = 0; si < clr::SharedData::OffsetOfShift; ++si) {
-				fpos_t pos;
-				::fgetpos(fg.file, &pos);	//save current position
-				lr::read_string(string_buf, sizeof(string_buf), fg.file);
-				if (rx::match(param->data.filter, string_buf)) {
-					clr::Result res = { pos };
-					param->results.Push(res);	//insert saving position
+		clr::ThreadParam* param = (clr::ThreadParam*)lpParam;
+		clr::ThreadData& data = param->data;
+		while (data.state != clr::FinishThread) {
+			if( data.state == clr::NeedProcess) {
+				unsigned string_pos = 0;
+				for (unsigned bi = 0; bi < sizeof(data.stringBuffer); ++bi) {
+				   char& c = data.stringBuffer[bi];
+				   if (c == '\n') {
+					   c = '\0';
+					   char* str = data.stringBuffer + string_pos;
+					   string_pos = bi + 1;
+					   bool matched = rx::match(param->filter, str) > 0;
+					   if (!matched) { continue; }
+					   clr::Result res = { data.pos_in_file + (str - data.stringBuffer) };
+					   param->results.Push(res);
+				   }
 				}
+				data.state = clr::AlreadyProcessed;
 			}
+			
+			spec::Sleep(10);
 		}
+		return 0;
+	}
 
+	DWORD WINAPI FileReadThreadProc(LPVOID lpParam) {
+		clr::ReadFileThreadParam* rfThreadParam = (clr::ReadFileThreadParam*)lpParam;
+		while (true) {
+			if (rfThreadParam->state == clr::StartThread) {
+				spec::Sleep(10);
+				continue;
+			}
+
+			for (unsigned ti = 0
+				, n = rfThreadParam->dataPerThread.size();
+				ti < n; ++ti) {
+				clr::ThraedWithData& td = rfThreadParam->dataPerThread[ti];
+				const bool& isRestThread = td.param->data.state == clr::AlreadyProcessed
+					|| td.param->data.state == clr::StartThread;
+				if (!isRestThread) {
+					continue;
+				}
+				unsigned long pos ;
+				if (!rfThreadParam->file.ReadStrings(td.param->data.stringBuffer, sizeof(td.param->data.stringBuffer), pos)) {
+					//file in the end
+					for (unsigned tii = 0
+						, nn = rfThreadParam->dataPerThread.size();
+						tii < nn; ++tii) {
+						clr::ThraedWithData& tdd = rfThreadParam->dataPerThread[ti];
+						tdd.param->data.state = clr::FinishThread;
+					}
+					rfThreadParam->state = clr::FinishThread;
+					return 0;
+				}
+				td.param->data.pos_in_file = pos;
+				td.param->data.state = clr::NeedProcess;
+			}
+			//spec::Sleep(10);
+		}
 		//fake
 		return 0;
 	}
@@ -162,11 +138,8 @@ int log_reader::test(const char* filename, const char* regex, bool withPrintResu
 
 ///////////// Public ///////////////
 clr::CLogReader(const char* filename)
-	: thread_param(data, shared_data, results) {
+	: read_thread_param(this->threads, this->data.file_for_seach) {
 	data.lastError = NoneError;
-	data.file = nullptr;
-	shared_data.file = nullptr;
-	shared_data.last_pos_in_file = 0;
 
 	lastErrorAssert();
 	::memset(this->data.filter, 0, sizeof(this->data.filter));
@@ -196,22 +169,6 @@ bool clr::GetNextLine(char *buf, const int bufsize) {
 		return false;
 	}
 
-	//if threads already finished, but has results
-	if (shared_data.GetLastPos() == EOF && !threads.size()) {
-		Result res;
-		if (!results.Pop(res)) {
-			//not have new results
-			return false;
-		}
-		if (::fsetpos(data.file, &res.position_in_file)) {
-			this->data.lastError = lr::InnerError;
-			return false;
-		}
-
-		lr::read_string(buf, bufsize, data.file);
-		return true;
-	}
-
 	//init threads once
 	if (!threads.size()) {
 		init_threads();
@@ -219,12 +176,14 @@ bool clr::GetNextLine(char *buf, const int bufsize) {
 			this->data.lastError = lr::InnerError;
 			return false;
 		}
+		read_thread_param.state = clr::AlreadyProcessed;
+		read_thread.Set(lr::FileReadThreadProc, &read_thread_param);
 	}
 
 	//try pop result from queue, while file reading was finished
 	Result res;
 	while (!results.Pop(res)) {
-		if (shared_data.GetLastPos() == EOF && threads.size()) {
+		if (read_thread_param.state == clr::FinishThread && threads.size()) {
 			//means file finished
 			threads.clear();	//threads finished
 			if (!results.Pop(res)) {
@@ -240,12 +199,8 @@ bool clr::GetNextLine(char *buf, const int bufsize) {
 	//lr::log(res.position_in_file);
 
 	//move result into user
-	if (::fsetpos(data.file, &res.position_in_file)) {
-		this->data.lastError = lr::InnerError;
-		return false;
-	}
-	
-	lr::read_string(buf, bufsize, data.file);
+	data.file_for_read.SetPosition(res.position_in_file);
+	data.file_for_read.ReadString(buf, bufsize);
 
 	return true;
 }
@@ -254,39 +209,29 @@ bool clr::Open() {
 	lastErrorAssert();
 	this->Close();
 	
-	if (fopen_s(&this->shared_data.file, this->data.fileName, lr::FileOpenMode)) {
-		this->data.lastError = lr::FileOpenError;
-		return false;
+	bool res = data.file_for_read.OpenForRead(data.fileName);
+	if (!res) {
+		data.lastError = lr::FileOpenError;
 	}
-
-	if (fopen_s(&this->data.file, this->data.fileName, lr::FileOpenMode)) {
-		this->data.lastError = lr::FileOpenError;
-		return false;
+	res = data.file_for_seach.OpenForRead(data.fileName);
+	if (!res) {
+		data.lastError = lr::FileOpenError;
 	}
-
-	assert(this->shared_data.file && "ClogReader: logic uncorrect");
+	assert(res && "ClogReader: logic uncorrect");
 	return true;
 }
 
 void clr::Close() {
 	lastErrorAssert();
-	if (!this->shared_data.file) {
-		return;
+	bool res = data.file_for_read.Close();
+	if (!res) {
+		data.lastError = lr::FileCloseError;
 	}
-	if (fclose(this->shared_data.file)) {
-		this->data.lastError = lr::FileCloseError;
+	res = data.file_for_seach.Close();
+	if (!res) {
+		data.lastError = lr::FileCloseError;
 	}
-	this->shared_data.file = nullptr;
-
-	if (!this->data.file) {
-		return;
-	}
-	if (fclose(this->data.file)) {
-		this->data.lastError = lr::FileCloseError;
-	}
-	this->data.file = nullptr;
-
-	assert(!this->shared_data.file && "ClogReader: logic uncorrect");
+	assert(res && "ClogReader: logic uncorrect");
 }
 
 bool clr::SetFilter(const char* filter) {
@@ -321,64 +266,9 @@ void clr::init_threads() {
 	const auto& thread_limit = spec::Hardware_concurrency();
 	threads.resize(thread_limit);
 	for (unsigned ti = 0; ti < thread_limit; ++ti) {
-		threads[ti].Set(&lr::RegexThreadProc, &this->thread_param);
+		ThraedWithData& tdata = threads[ti];
+		auto* param = new clr::ThreadParam(this->results, this->data.filter);
+		tdata.param.reset(param);
+		tdata.thread.Set(lr::RegexThreadProc, param);
 	}
 }
-
-//////////// SharedData ///////////
-fpos_t clr::SharedData::GetLastPos() {
-	cs::CLockGuard<spec::CMutex> lk(mutex);
-	return last_pos_in_file;
-}
-
-fpos_t clr::SharedData::Shift() {
-	cs::CLockGuard<spec::CMutex> lk(mutex);
-	if (last_pos_in_file == EOF) {
-		return last_pos_in_file;
-	}
-	for (unsigned i = 0; i < OffsetOfShift; ++i) {
-		while (true) {
-			char c = ::fgetc(file);
-			if (c == '\n') {
-				//move to next line
-				break;
-			}
-			if (c == EOF) {
-				//file is finished
-				fpos_t old_pos = last_pos_in_file;
-				last_pos_in_file = EOF;
-				return old_pos;
-			}
-		}
-	}
-	fpos_t old_pos = last_pos_in_file;
-	::fgetpos(file, &last_pos_in_file);	//set next position after OffsetOfShift lines
-	return old_pos;	//return current position
-}
-
-/* unfortunate 
-void* operator new  (std::size_t count, const std::nothrow_t& tag) {
-	return ::GlobalAlloc(GMEM_FIXED, count);
-}
-
-void* operator new[](std::size_t count, const std::nothrow_t& tag) {
-	return ::GlobalAlloc(GMEM_FIXED, count);
-}
-
-void* operator new  (std::size_t count){
-	return ::GlobalAlloc(GMEM_FIXED, count);
-}
-
-void* operator new[](std::size_t count) {
-	return ::GlobalAlloc(GMEM_FIXED, count);
-}
-
-
-void operator delete(void* ptr) {
-	::GlobalFree(ptr);
-}
-
-void operator delete[](void* ptr) {
-	::GlobalFree(ptr);
-}
-//*/

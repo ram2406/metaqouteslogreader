@@ -7,6 +7,39 @@
 static struct hack {
 	~hack() { system("pause"); }	//wait user to press any key
 } h;
+
+
+
+namespace /*read file*/ {
+	TEST_CASE("test of read file") {
+		char string_buf[2048] = { 0 };
+		char string_buf2[sizeof(string_buf)] = { 0 };
+		spec::CFile file;
+		CHECK(file.OpenForRead("../MetaQuotesLogReaderTest/teamcity-vcs.log.2"));
+		CHECK(file.ReadString(string_buf, sizeof(string_buf)));
+		unsigned long pos = file.GetPosition();
+		CHECK(file.ReadString(string_buf, sizeof(string_buf)));
+		file.SetPosition(pos);
+		CHECK(file.ReadString(string_buf2, sizeof(string_buf2)));
+		CHECK(strcmp(string_buf, string_buf2) == 0);
+
+		unsigned long pos0 = file.GetPosition();
+		CHECK(file.ReadString(string_buf2, sizeof(string_buf2)));
+		file.SetPosition(pos0);
+		unsigned long pos1;
+		file.ReadStrings(string_buf, sizeof(string_buf), pos1);
+		CHECK(pos0 == pos1);
+
+		file.SetPosition(pos1);
+		unsigned long pos2;
+		file.ReadStrings(string_buf, sizeof(string_buf), pos2);
+		CHECK(pos1 == pos2);
+		
+		CHECK(file.Close());
+	}
+}
+
+
 namespace /* simple exec test */{
 	TEST_CASE("test of exec program with valid parameters") {
 		CHECK(system(R"(del logfilename.txt && del logfilename1.txt)") == 0);
@@ -67,7 +100,6 @@ namespace /* conainers test */ {
 		CHECK(data2 == 100);
 	}
 }
-
 namespace /* main tests */ {
 	TEST_CASE("main-test") {
 		

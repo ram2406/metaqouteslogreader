@@ -73,9 +73,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="log_reader.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="log_reader1.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="log_reader1.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="log_reader.props">

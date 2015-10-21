@@ -138,6 +138,7 @@ namespace containers {
 			return true;
 		}
 
+
 		void clear() {
 			resize(0);
 		}
