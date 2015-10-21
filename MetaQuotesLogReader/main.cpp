@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
 		const auto& flag = argv[PrintResultFlag];
 		printResult = strcmp(flag, "--print") == 0;
 	}
-
+	system("pause");
 	const auto& err_code = lr::test(filename, regex, printResult);
 	return  err_code 
 			? err_code + UnknownError +1 

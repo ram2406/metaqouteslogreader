@@ -39,7 +39,7 @@ namespace log_reader {
 		//////////// SharedData ////////////
 		struct SharedData {
 			friend class CLogReader;
-			static const unsigned OffsetOfShift = 1000U;
+			static const unsigned OffsetOfShift = 10000U;
 		private:
 			
 			fpos_t last_pos_in_file;

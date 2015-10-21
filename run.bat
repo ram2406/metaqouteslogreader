@@ -1,0 +1,1 @@
+logreader.exe "^[2015-10-11 16:.*WARN.*Not Found?$" ".\MetaQuotesLogReaderTest\teamcity-vcs.log.2" --print

@@ -12,17 +12,72 @@ typedef lr::CLogReader clr;
 namespace log_reader {
 
 	//reading string from file
+
 	inline
 	void read_string(char *buf, unsigned bufsize, FILE* f) {
-		for (unsigned bi = 0; bi < bufsize; ++bi) {
-			const auto& c = fgetc(f);
-			if (c == '\n' || c == EOF) {
-				buf[bi] = '\0';
-				break;
-			}
-			buf[bi] = c;
+		fpos_t offset;
+		fgetpos(f, &offset);
+		::fread(buf, 1, bufsize, f);
+		
+		for (unsigned bi = 0; bi < bufsize; bi += 4) {
+			if (buf[bi + 0] == '\n') { buf[bi + 0] = '\0'; break; }
+			++offset;
+			if (buf[bi + 1] == '\n') { buf[bi + 1] = '\0'; break; }
+			++offset;
+			if (buf[bi + 2] == '\n') { buf[bi + 2] = '\0'; break; }
+			++offset;
+			if (buf[bi + 3] == '\n') { buf[bi + 3] = '\0'; break; }
+			++offset;
 		}
+		++offset;
+		::fsetpos(f, &offset);
 	}
+
+
+	//inline
+	//void read_string(char *buf, unsigned bufsize, FILE* f) {
+	//	for (unsigned bi = 0; bi < bufsize; bi += 4) {
+	//		{
+	//			const auto& c = fgetc(f);
+	//			if (c == '\n' || c == EOF) {
+	//				buf[bi + 0] = '\0';
+	//				break;
+	//			}
+	//			buf[bi + 0] = c;
+	//		}
+	//		////////////////
+	//		{
+	//			const auto& c = fgetc(f);
+	//			if (bufsize == bi) { break; }
+	//			if (c == '\n' || c == EOF) {
+	//				buf[bi + 1] = '\0';
+	//				break;
+	//			}
+	//			buf[bi + 1] = c;
+	//		}
+	//		////////////////
+	//		{
+	//			const auto& c = fgetc(f);
+	//			if (bufsize == bi) { break; }
+	//			if (c == '\n' || c == EOF) {
+	//				buf[bi + 2] = '\0';
+	//				break;
+	//			}
+	//			buf[bi + 2] = c;
+	//		}
+	//		////////////////
+	//		{
+	//			const auto& c = fgetc(f);
+	//			if (bufsize == bi) { break; }
+	//			if (c == '\n' || c == EOF) {
+	//				buf[bi + 3] = '\0';
+	//				break;
+	//			}
+	//			buf[bi + 3] = c;
+	//			////////////////
+	//		}
+	//	}
+	//}
 
 
 	inline 

@@ -72,7 +72,10 @@
     <ClInclude Include="thread_safe_queue.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="log_reader.cpp" />
+    <ClCompile Include="log_reader.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="log_reader1.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="log_reader.props">
