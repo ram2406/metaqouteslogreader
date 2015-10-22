@@ -86,9 +86,7 @@ namespace spec {
 			auto dwCurrentFilePosition = GetPosition();
 
 			DWORD buf_size_act = 0;
-			if (!ReadFile(file, buf, bufsize, &buf_size_act, 0) || !buf_size_act) {
-				auto err = GetLastError();
-
+			if (!ReadBuffer(buf, bufsize, buf_size_act)) {
 				return false;
 			}
 
@@ -111,14 +109,16 @@ namespace spec {
 			return true;
 		}
 
-		bool ReadStrings(char *buf, unsigned bufsize, unsigned long& pos, unsigned long& newpos) {
+		bool ReadBuffer(char *buf, unsigned long bufsize, unsigned long& actual_bufsize) {
+			return ReadFile(file, buf, bufsize, &actual_bufsize, 0) && actual_bufsize;
+		}
+
+		bool ReadStrings(char *buf, unsigned long bufsize, unsigned long& pos, unsigned long& newpos) {
 			DWORD buf_size_act = 0;
 
 			pos = GetPosition();
 
-			if (!ReadFile(file, buf, bufsize, &buf_size_act, 0) || !buf_size_act) {
-				auto err = GetLastError();
-
+			if (!ReadBuffer(buf, bufsize, buf_size_act)) {
 				return false;
 			}
 			

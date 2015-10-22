@@ -41,17 +41,17 @@ namespace log_reader {
 			friend class CLogReader;
 			static const unsigned OffsetOfShift = 10000U;
 		private:
-			
-			fpos_t last_pos_in_file;
+			char strbuf[2048];
+			long long last_pos_in_file;
 			spec::CMutex mutex;
 			spec::CFile file;
 		public:
-			inline	fpos_t GetLastPos();
-			inline	fpos_t Shift();
+			inline	long long GetLastPos();
+			inline	long long Shift();
 		};
 		///////////// Result ///////////////
 		struct Result {
-			fpos_t position_in_file;
+			long long position_in_file;
 		};
 		//////////// ThreadParam ////////////
 		struct ThreadParam {

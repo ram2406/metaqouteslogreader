@@ -105,12 +105,12 @@ namespace log_reader {
 
 		while (true) {
 			//get current offset and shift on fixed constant value (portion for a one thread)
-			fpos_t offset = param->shared_data.Shift();
+			long long offset = param->shared_data.Shift();
 			if (offset < 0) {
 				return 0;
 			}
 			//shifting in file
-			file.SetPosition(offset);
+			file.SetPosition((unsigned long)offset);
 			//for each iteration in portion
 			for (unsigned si = 0; si < clr::SharedData::OffsetOfShift; ++si) {
 				fpos_t pos;
@@ -193,7 +193,7 @@ bool clr::GetNextLine(char *buf, const int bufsize) {
 			return false;
 		}
 		
-		data.file.SetPosition(res.position_in_file);
+		data.file.SetPosition((unsigned long)res.position_in_file);
 		data.file.ReadString(buf, bufsize);
 		
 		return true;
@@ -227,7 +227,7 @@ bool clr::GetNextLine(char *buf, const int bufsize) {
 	//lr::log(res.position_in_file);
 
 	//move result into user
-	data.file.SetPosition(res.position_in_file);
+	data.file.SetPosition((unsigned long)res.position_in_file);
 	data.file.ReadString(buf, bufsize);
 
 	return true;
@@ -303,14 +303,28 @@ fpos_t clr::SharedData::Shift() {
 		return last_pos_in_file;
 	}
 	fpos_t old_pos = last_pos_in_file;
-	char strbuf[2048];
-	for (unsigned i = 0; i < OffsetOfShift; ++i) {
-		if (!file.ReadString(strbuf, sizeof(strbuf))) {
+	
+	unsigned string_count = 0;
+	while (true) {
+		unsigned long act_bufsize;
+		if (!file.ReadBuffer(strbuf, sizeof(strbuf), act_bufsize)) {
 			last_pos_in_file = EOF;
 			return old_pos;
 		}
+		unsigned bi = 0;
+		for (; bi < act_bufsize; ++bi) {
+			if (strbuf[bi] == '\n') {
+				++string_count;
+				
+				if (string_count == OffsetOfShift) {
+					last_pos_in_file += bi;
+					return old_pos;
+				}
+			}
+		}
+		last_pos_in_file += bi;
 	}
-	last_pos_in_file = file.GetPosition();
+	
 	return old_pos;	//return current position
 }
 

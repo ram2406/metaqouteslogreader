@@ -104,11 +104,35 @@ namespace /* main tests */ {
 	TEST_CASE("main-test") {
 		
 		auto t1 = std::chrono::high_resolution_clock::now();
-		CHECK(system(R"(logreader "2015-10-13.*WARN.*Not Found?$" "../MetaQuotesLogReaderTest/teamcity-vcs.log.2" --print)") == 0);
+		CHECK(system(R"(logreader "2015-10-13.*WARN.*Not Found?$" "../MetaQuotesLogReaderTest/teamcity-vcs.log.2")") == 0);
 		auto t2 = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
 		std::cout << "\n Time: " << duration.count() * 0.001 << "s" << std::endl;
+	}
+
+	TEST_CASE("main-test #2") {
+
+		auto t1 = std::chrono::high_resolution_clock::now();
+		CHECK(system(R"(logreader "^[2015-10-11 16:.*WARN.*Not Found?$" "../MetaQuotesLogReaderTest/teamcity-vcs.log.2" --print)") == 0);
+
+		auto t2 = std::chrono::high_resolution_clock::now();
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+		std::cout << "\n Time: " << duration.count() * 0.001 << "s" << std::endl;
+
+
 		
-		
+	}
+
+	TEST_CASE("main-test #3") {
+
+		auto t1 = std::chrono::high_resolution_clock::now();
+		CHECK(system(R"(logreader "WARN.*lerg.*Not Found?$" "../MetaQuotesLogReaderTest/teamcity-vcs.log.2")") == 0);
+
+		auto t2 = std::chrono::high_resolution_clock::now();
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+		std::cout << "\n Time: " << duration.count() * 0.001 << "s" << std::endl;
+
+
+
 	}
 }

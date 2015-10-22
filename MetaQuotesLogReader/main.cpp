@@ -14,7 +14,8 @@ enum ArgumentOrder {
 	ProcessNameOrder = 0,
 	RegexOrder,
 	FileNameOrder,
-	PrintResultFlag
+	PrintResultFlag,
+	PauseBeforeStartingFlag,
 };
 
 int main(int argc, char** argv) {
@@ -34,9 +35,15 @@ int main(int argc, char** argv) {
 	bool printResult = false;
 	if (argc > 3) { 
 		const auto& flag = argv[PrintResultFlag];
-		printResult = strcmp(flag, "--print") == 0;
+		printResult = strcmp(flag, "--print") == 0; 
 	}
-	//system("pause");
+	if (argc > 4) {
+		const auto& flag = argv[PauseBeforeStartingFlag];
+		if (strcmp(flag, "--pause") == 0) {
+			system("pause");
+		}
+	}
+	
 	const auto& err_code = lr::test(filename, regex, printResult);
 	return  err_code 
 			? err_code + UnknownError +1 
