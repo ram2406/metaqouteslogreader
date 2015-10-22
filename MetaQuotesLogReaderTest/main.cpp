@@ -26,13 +26,13 @@ namespace /*read file*/ {
 		unsigned long pos0 = file.GetPosition();
 		CHECK(file.ReadString(string_buf2, sizeof(string_buf2)));
 		file.SetPosition(pos0);
-		unsigned long pos1;
-		file.ReadStrings(string_buf, sizeof(string_buf), pos1);
+		unsigned long pos1, npos1;
+		file.ReadStrings(string_buf, sizeof(string_buf), pos1, npos1);
 		CHECK(pos0 == pos1);
 
 		file.SetPosition(pos1);
-		unsigned long pos2;
-		file.ReadStrings(string_buf, sizeof(string_buf), pos2);
+		unsigned long pos2, npos2;
+		file.ReadStrings(string_buf, sizeof(string_buf), pos2, npos2);
 		CHECK(pos1 == pos2);
 		
 		CHECK(file.Close());
@@ -104,7 +104,7 @@ namespace /* main tests */ {
 	TEST_CASE("main-test") {
 		
 		auto t1 = std::chrono::high_resolution_clock::now();
-		CHECK(system(R"(logreader "^[2015-10-11 16:.*WARN.*Not Found?$" "../MetaQuotesLogReaderTest/teamcity-vcs.log.2" --print)") == 0);
+		CHECK(system(R"(logreader "2015-10-13.*WARN.*Not Found?$" "../MetaQuotesLogReaderTest/teamcity-vcs.log.2" --print)") == 0);
 		auto t2 = std::chrono::high_resolution_clock::now();
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
 		std::cout << "\n Time: " << duration.count() * 0.001 << "s" << std::endl;

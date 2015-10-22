@@ -5,7 +5,7 @@
 namespace spec {
 	inline 
 	unsigned Hardware_concurrency() {
-		return 1;
+
 		SYSTEM_INFO sysinfo;
 		GetSystemInfo(&sysinfo);
 
@@ -111,7 +111,7 @@ namespace spec {
 			return true;
 		}
 
-		bool ReadStrings(char *buf, unsigned bufsize, unsigned long& pos) {
+		bool ReadStrings(char *buf, unsigned bufsize, unsigned long& pos, unsigned long& newpos) {
 			DWORD buf_size_act = 0;
 
 			pos = GetPosition();
@@ -138,7 +138,8 @@ namespace spec {
 				buf[bufsize - 1] = '\0';
 			}
 			++offset;
-			SetPosition(pos+offset);
+			newpos = pos + offset;
+			SetPosition(newpos);
 			return true;
 		}
 
